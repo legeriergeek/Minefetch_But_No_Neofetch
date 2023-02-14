@@ -36,6 +36,8 @@ public class InfoCollector {
     private int addressCells;
     private int sizeCells;
 
+    private boolean debug;
+
     public InfoCollector() {
         this.cpus = new ArrayList<>();
         this.memBanks = new ArrayList<>();
@@ -44,18 +46,46 @@ public class InfoCollector {
     }
 
     public boolean init(Plugin plugin) {
-        if (!Files.exists(DEVICE_TREE)) return false;
+//        if (!Files.exists(DEVICE_TREE)) return false;
 
         hasWindfarm = Files.exists(WINDFARM);
 
+        //x86 Debugging
+        debug = true;
+
+        //x86 Debugging
+        if (debug) {Bukkit.getLogger().info("Initial Initialization Passed!");}
+
+
         try {
-            addressCells = ByteBuffer.wrap(Files.readAllBytes(DEVICE_TREE.resolve("#address-cells"))).getInt();
-            sizeCells = ByteBuffer.wrap(Files.readAllBytes(DEVICE_TREE.resolve("#size-cells"))).getInt();
+//            addressCells = ByteBuffer.wrap(Files.readAllBytes(DEVICE_TREE.resolve("#address-cells"))).getInt();
+//            sizeCells = ByteBuffer.wrap(Files.readAllBytes(DEVICE_TREE.resolve("#size-cells"))).getInt();
+
+            //x86 Debugging
+            if (debug) {Bukkit.getLogger().info("Address Cells Passed!");}
 
             readCPUInfo();
+
+            //x86 Debugging
+            if (debug) {Bukkit.getLogger().info("CPU Init Passed!");}
+
             readMemoryInfo();
+
+            //x86 Debugging
+            if (debug) {Bukkit.getLogger().info("Memory init Passed!");}
+
             readDiskInfo();
+
+            //x86 Debugging
+            if (debug) {Bukkit.getLogger().info("Disk init Passed!");}
+
             readGPUInfo();
+
+            //x86 Debugging
+            if (debug) {Bukkit.getLogger().info("GPU init Passed!");}
+
+            //x86 Debugging
+            if (debug) {Bukkit.getLogger().info("Info Collection Passed!");}
 
             var scheduler = Bukkit.getScheduler();
             // updates disk stats every 15 seconds on a separate thread
@@ -195,21 +225,41 @@ public class InfoCollector {
         for (int i = 0; i < lines.size(); i++) {
             var line = lines.get(i);
 
+            //x86 Debugging
+            if (debug) {Bukkit.getLogger().info("Got" + i + "lines.");}
+
             if (line.isBlank() && idx != -1) {
                 cpus.add(new CPUInfo(idx, cpuName, cpuMhz));
                 idx = -1;
                 continue;
             }
 
+
+            //x86: Seems .indexOf cant handle.. emptiness which doesn't occur in PowerPC cpuinfo listings
+            if (line.startsWith("power")) {
+                continue;
+            }
+
             String value = line.substring(line.indexOf(':') + 2);
+
+            //x86 Debugging
+            if (debug) {Bukkit.getLogger().info(value);}
+
             if (line.startsWith("processor")) {
                 idx = Integer.parseInt(value);
             }
 
-            if (line.startsWith("cpu")) {
+            //x86: changed "cpu" to "model name" to accommodate architectural difference in /proc/cpuinfo
+
+            if (line.startsWith("model name")) {
                 cpuName = value;
 
+                //x86 Debugging
+                if (debug) {Bukkit.getLogger().info("Found " + value + " Microprocessor!");}
+
                 var x = cpuName.indexOf(',');
+
+                //x86: removes "Altivec supported" from PowerPC cpuinfo readout.. i think.. no point in removing ;3
                 if (x != -1) {
                     cpuName = cpuName.substring(0, x);
                 }
@@ -219,15 +269,19 @@ public class InfoCollector {
                 else if (cpuName.matches("^(PPC)*9.+")) cpuName = String.format("PowerPC G5 (%s)", cpuName);
             }
 
-            if (line.startsWith("clock")) {
+            //x86: changed "clock" to "cpu MHz" to accommodate architectural difference in /proc/cpuinfo
+
+            if (line.startsWith("cpu MHz")) {
                 cpuMhz = Integer.parseInt(value.substring(0, value.indexOf('.')));
             }
 
-            if (line.startsWith("detected as")) {
-                if (value.indexOf('(') != -1)
-                    displayModel = value.substring(value.indexOf('(') + 1, value.indexOf(')'));
-                else displayModel = value;
-            }
+            //x86: Has no display model
+
+//            if (line.startsWith("detected as")) {
+//                if (value.indexOf('(') != -1)
+//                    displayModel = value.substring(value.indexOf('(') + 1, value.indexOf(')'));
+//                else displayModel = value;
+//            }
         }
     }
 
