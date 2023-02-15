@@ -7,3 +7,6 @@ commands:
   system:
     description: Provides information on the current system
     usage: /<command>
+  neofetch:
+    descripton: Provides a parsed output from Neofetch
+    usgae: /<command>

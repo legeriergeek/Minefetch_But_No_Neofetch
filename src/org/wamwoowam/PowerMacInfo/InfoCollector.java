@@ -39,7 +39,7 @@ public class InfoCollector {
     private int addressCells;
     private int sizeCells;
 
-    private boolean debug;
+    public boolean debug;
 
     public InfoCollector() {
         this.cpus = new ArrayList<>();
