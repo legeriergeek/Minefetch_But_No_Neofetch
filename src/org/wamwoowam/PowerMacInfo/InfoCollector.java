@@ -4,13 +4,12 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.io.BufferedReader;
+import java.io.FileReader;
+
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,8 +21,12 @@ import java.util.stream.Collectors;
 
 public class InfoCollector {
     private static final String LOOKUP_API_FORMAT = "https://di-api.reincubate.com/v1/apple-serials/%s/";
-    private static final Path DEVICE_TREE = Path.of("/proc/device-tree");
-    private static final Path WINDFARM = Path.of("/sys/devices/platform/windfarm.0");
+
+    //x86: /proc/device-tree seems to be OpenFirmware on PowerPC
+    //private static final Path DEVICE_TREE = Path.of("/proc/device-tree");
+
+    //x86: WINDFARM is a PowerPC (G5) exclusive kernel driver.. a lot relies on this
+    //private static final Path WINDFARM = Path.of("/sys/devices/platform/windfarm.0");
     private final List<CPUInfo> cpus;
     private final List<MemoryBankInfo> memBanks;
     private final List<String> gpus;
@@ -48,7 +51,7 @@ public class InfoCollector {
     public boolean init(Plugin plugin) {
 //        if (!Files.exists(DEVICE_TREE)) return false;
 
-        hasWindfarm = Files.exists(WINDFARM);
+        //hasWindfarm = Files.exists(WINDFARM);
 
         //x86 Debugging
         debug = true;
@@ -91,58 +94,58 @@ public class InfoCollector {
             // updates disk stats every 15 seconds on a separate thread
             scheduler.runTaskTimerAsynchronously(plugin, this::readDiskInfo, 0L, 20L * 15L);
             // updates sensors every second on a separate thread
-            scheduler.runTaskTimerAsynchronously(plugin, this::readSensors, 0L, 20L);
+            // scheduler.runTaskTimerAsynchronously(plugin, this::readSensors, 0L, 20L);
         } catch (IOException e) {
             return false;
         }
 
-        try {
-            var client = HttpClient.newHttpClient();
-            var request = HttpRequest.newBuilder(URI.create(String.format(LOOKUP_API_FORMAT, getSerialNumber()))).timeout(Duration.ofSeconds(5)).build();
-
-            client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenApply(response -> {
-                if (response.statusCode() != 200)
-                    throw new CompletionException(new Exception("Invalid response code!"));
-                return response;
-            }).thenApply(HttpResponse::body).thenAccept(body -> {
-                var json = new JSONObject(body);
-                displayModel = json.getJSONObject("configurationCode").getString("skuHint");
-            });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            var client = HttpClient.newHttpClient();
+//            var request = HttpRequest.newBuilder(URI.create(String.format(LOOKUP_API_FORMAT, getSerialNumber()))).timeout(Duration.ofSeconds(5)).build();
+//
+//            client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenApply(response -> {
+//                if (response.statusCode() != 200)
+//                    throw new CompletionException(new Exception("Invalid response code!"));
+//                return response;
+//            }).thenApply(HttpResponse::body).thenAccept(body -> {
+//                var json = new JSONObject(body);
+//                displayModel = json.getJSONObject("configurationCode").getString("skuHint");
+//            });
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
 
         return true;
     }
 
-    public String getModel() {
-        try {
-            return clean(Files.readString(DEVICE_TREE.resolve("model")));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    public String getModel() {
+//        try {
+//            return clean(Files.readString(DEVICE_TREE.resolve("model")));
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
-    public String getDisplayModel() {
-        return displayModel;
-    }
+//    public String getDisplayModel() {
+//        return displayModel;
+//    }
 
-    public String getSerialNumber() {
-        try {
-            var rawSerial = Files.readAllBytes(DEVICE_TREE.resolve("serial-number"));
-            int x = 0;
-            while (rawSerial[x] != 0) x++;
-
-            while (rawSerial[x] == 0) x++;
-
-            int y = x;
-            while (rawSerial[y] != 0) y++;
-
-            return new String(rawSerial, x, y - x);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    public String getSerialNumber() {
+//        try {
+//            var rawSerial = Files.readAllBytes(DEVICE_TREE.resolve("serial-number"));
+//            int x = 0;
+//            while (rawSerial[x] != 0) x++;
+//
+//            while (rawSerial[x] == 0) x++;
+//
+//            int y = x;
+//            while (rawSerial[y] != 0) y++;
+//
+//            return new String(rawSerial, x, y - x);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
     public String getCPU() {
         return String.format("%dx %s @ %s", cpus.size(), cpus.get(0).getName(), cpus.get(0).getClock());
@@ -286,33 +289,38 @@ public class InfoCollector {
     }
 
 
+    //x86: Uses output from device tree to gather ram information and add to the memBanks arraylist, we dont have OpenFirmware :'3
     private void readMemoryInfo() throws IOException {
-        memBanks.clear();
 
-        var addressBytes = addressCells * 4;
-        var sizeBytes = sizeCells * 4;
+        //TODO: x86: This all relies on OpenFirmware, try parsing /proc/meminfo?.. for now
+        return;
 
-        // TODO: is it always memory@0,0?
-        var mem = Files.readAllBytes(DEVICE_TREE.resolve("memory@0,0/reg"));
-        var dimmSpeeds = Files.readString(DEVICE_TREE.resolve("memory@0,0/dimm-speeds")).split("\0");
-        var dimmTypes = Files.readString(DEVICE_TREE.resolve("memory@0,0/dimm-types")).split("\0");
-
-        var stride = (addressCells + sizeCells) * 4;
-        var count = mem.length / stride;
-
-        assert dimmSpeeds.length == count;
-        assert dimmTypes.length == count;
-
-        for (int i = 0; i < count; i += 1) {
-            var idx = i * stride;
-            var addressBuf = ByteBuffer.wrap(mem, idx, addressBytes);
-            var sizeBuff = ByteBuffer.wrap(mem, idx + addressBytes, sizeBytes);
-
-            long address = getAddress(addressBuf);
-            long size = getSize(sizeBuff);
-
-            memBanks.add(new MemoryBankInfo(address, size, dimmTypes[i], dimmSpeeds[i]));
-        }
+//        memBanks.clear();
+//
+//        var addressBytes = addressCells * 4;
+//        var sizeBytes = sizeCells * 4;
+//
+//        // TODO: is it always memory@0,0?
+//        var mem = Files.readAllBytes(DEVICE_TREE.resolve("memory@0,0/reg"));
+//        var dimmSpeeds = Files.readString(DEVICE_TREE.resolve("memory@0,0/dimm-speeds")).split("\0");
+//        var dimmTypes = Files.readString(DEVICE_TREE.resolve("memory@0,0/dimm-types")).split("\0");
+//
+//        var stride = (addressCells + sizeCells) * 4;
+//        var count = mem.length / stride;
+//
+//        assert dimmSpeeds.length == count;
+//        assert dimmTypes.length == count;
+//
+//        for (int i = 0; i < count; i += 1) {
+//            var idx = i * stride;
+//            var addressBuf = ByteBuffer.wrap(mem, idx, addressBytes);
+//            var sizeBuff = ByteBuffer.wrap(mem, idx + addressBytes, sizeBytes);
+//
+//            long address = getAddress(addressBuf);
+//            long size = getSize(sizeBuff);
+//
+//            memBanks.add(new MemoryBankInfo(address, size, dimmTypes[i], dimmSpeeds[i]));
+//        }
     }
 
     private void readDiskInfo() {
@@ -356,38 +364,77 @@ public class InfoCollector {
     }
 
     private void readSensors() {
+
+        //x86: We dont have windfarm.
+        // TODO: Add support for RAPL sysfs interface
+
         // TODO: we only support windfarm currently
-        try {
-            if (sensors.size() == 0 && hasWindfarm) {
-                for (int i = 0; i < cpus.size(); i++) {
-                    addSensorIfExists(SensorType.TEMPERATURE, SensorLocation.CPU, "cpu-temp-" + i);
-                    addSensorIfExists(SensorType.POWER, SensorLocation.CPU, "cpu-power-" + i);
-                    addSensorIfExists(SensorType.CURRENT, SensorLocation.CPU, "cpu-current-" + i);
-                    addSensorIfExists(SensorType.VOLTAGE, SensorLocation.CPU, "cpu-voltage-" + i);
-                    addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.CPU, "cpu-rear-fan-" + i);
-                    addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.CPU, "cpu-front-fan-" + i);
-                }
-
-                addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.DISK, "drive-bay-fan");
-                addSensorIfExists(SensorType.TEMPERATURE, SensorLocation.DISK, "hd-temp");
-                addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.GENERIC, "backside-fan");
-                addSensorIfExists(SensorType.TEMPERATURE, SensorLocation.GENERIC, "backside-temp");
-                addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.SLOTS, "slots-fan");
-                addSensorIfExists(SensorType.POWER, SensorLocation.SLOTS, "slots-power");
-            }
-
-            for (var sensor : sensors)
-                sensor.update();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            if (sensors.size() == 0 && hasWindfarm) {
+//                for (int i = 0; i < cpus.size(); i++) {
+//                    addSensorIfExists(SensorType.TEMPERATURE, SensorLocation.CPU, "cpu-temp-" + i);
+//                    addSensorIfExists(SensorType.POWER, SensorLocation.CPU, "cpu-power-" + i);
+//                    addSensorIfExists(SensorType.CURRENT, SensorLocation.CPU, "cpu-current-" + i);
+//                    addSensorIfExists(SensorType.VOLTAGE, SensorLocation.CPU, "cpu-voltage-" + i);
+//                    addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.CPU, "cpu-rear-fan-" + i);
+//                    addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.CPU, "cpu-front-fan-" + i);
+//                }
+//
+//                addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.DISK, "drive-bay-fan");
+//                addSensorIfExists(SensorType.TEMPERATURE, SensorLocation.DISK, "hd-temp");
+//                addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.GENERIC, "backside-fan");
+//                addSensorIfExists(SensorType.TEMPERATURE, SensorLocation.GENERIC, "backside-temp");
+//                addSensorIfExists(SensorType.FAN_SPEED, SensorLocation.SLOTS, "slots-fan");
+//                addSensorIfExists(SensorType.POWER, SensorLocation.SLOTS, "slots-power");
+//            }
+//
+//            for (var sensor : sensors)
+//                sensor.update();
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 
-    private void addSensorIfExists(SensorType type, SensorLocation location, String sensor) {
-        var path = WINDFARM.resolve(sensor);
 
-        if (Files.exists(path)) sensors.add(new SensorInfo(type, location, path));
+    //x86: Thanks, ChatGPT
+    //x86: should read CPU temperature, CPU power consumption since last poweron, and current CPU wattage using Intel RAPL,
+    public static double getTemperature() throws IOException {
+        File file = new File("/sys/class/thermal/thermal_zone0/temp");
+        BufferedReader reader = new BufferedReader(new FileReader(file));
+        String line = reader.readLine();
+        reader.close();
+        double temp = Double.parseDouble(line) / 1000.0;
+        return temp;
     }
+    public static double getPowerUsageHistorical() throws IOException {
+        File file = new File("/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj");
+        BufferedReader reader = new BufferedReader(new FileReader(file));
+        String line = reader.readLine();
+        reader.close();
+        double energy = Double.parseDouble(line);
+        double power = energy / 1000000.0; // convert from microjoules to watts
+        return power;
+    }
+
+    public static double getPowerUsage() throws IOException {
+        final String RAPL_ROOT = "/sys/class/powercap/intel-rapl";
+        final String RAPL_PKG = "intel-rapl:0";
+
+        Path path = Path.of(RAPL_ROOT, RAPL_PKG, "energy_uj");
+        long energyMicrojoules = Long.parseLong(Files.readString(path).trim());
+        double energyJoules = energyMicrojoules / 1000000.0;
+        Path maxPath = Path.of(RAPL_ROOT, RAPL_PKG, "max_energy_range_uj");
+        long maxMicrojoules = Long.parseLong(Files.readString(maxPath).trim());
+        double maxJoules = maxMicrojoules / 1000000.0;
+        double powerUsage = energyJoules * 1.0 / maxJoules;
+        return powerUsage;
+    }
+
+//    private void addSensorIfExists(SensorType type, SensorLocation location, String sensor) {
+//        var path = WINDFARM.resolve(sensor);
+//
+//        if (Files.exists(path)) sensors.add(new SensorInfo(type, location, path));
+//    }
 
     // cleans a string retrieved from the Device Tree
     private String clean(String src) {

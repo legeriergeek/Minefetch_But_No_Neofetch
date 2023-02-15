@@ -20,7 +20,7 @@ public class Main extends JavaPlugin {
             return;
         }
 
-        this.getLogger().info("Hello! This is a " + info.getDisplayModel());
+        this.getLogger().info("Hello! This is a " + info.getCPU());
 
         var cpus = info.getCPUs();
         for (String cpu : cpus)
@@ -33,10 +33,11 @@ public class Main extends JavaPlugin {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        // /system command
         if (command.getName().equalsIgnoreCase("system")) {
 
             var list = new ArrayList<String>();
-            list.add(String.format("--- %s%s%s ---", ChatColor.BOLD, info.getDisplayModel(), ChatColor.RESET));
+            list.add(String.format("--- %s%s%s ---", ChatColor.BOLD, "MineFetch", ChatColor.RESET));
             list.add(String.format("%sCPU:%s %s", ChatColor.BOLD, ChatColor.RESET, info.getCPU()));
             list.add(String.format("%sRAM:%s %s", ChatColor.BOLD, ChatColor.RESET, info.getMemory()));
 
@@ -52,7 +53,8 @@ public class Main extends JavaPlugin {
             }
 
             list.add(String.format("%sDisk:%s %s", ChatColor.BOLD, ChatColor.RESET, info.getDisk()));
-            list.add(String.format("%sSerial:%s %s", ChatColor.BOLD, ChatColor.RESET, info.getSerialNumber()));
+            //x86: Serial? what serial >w<
+            // list.add(String.format("%sSerial:%s %s", ChatColor.BOLD, ChatColor.RESET, info.getSerialNumber()));
             list.add(String.format("%sTemp:%s %s", ChatColor.BOLD, ChatColor.RESET, info.getTemps()));
 
             String[] array = new String[list.size()];
