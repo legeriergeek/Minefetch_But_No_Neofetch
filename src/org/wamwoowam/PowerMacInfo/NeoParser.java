@@ -13,7 +13,7 @@ import java.util.List;
 public class NeoParser {
 
     //x86 Debugging
-    boolean debug = true;
+    boolean debug = false;
 
     private final List<String> neofetch;
     private final HashMap neomap;

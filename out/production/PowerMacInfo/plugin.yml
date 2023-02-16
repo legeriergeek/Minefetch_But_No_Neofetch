@@ -4,9 +4,9 @@ author: WamWooWam
 main: org.wamwoowam.PowerMacInfo.Main
 load: STARTUP
 commands:
-  system:
-    description: Provides information on the current system
-    usage: /<command>
   neofetch:
     descripton: Provides a parsed output from Neofetch
+    usgae: /<command>
+  loadfetch:
+    descripton: Provides a LagMeter like output with CPU usage and Memory usage graphs.
     usgae: /<command>
