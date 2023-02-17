@@ -1,4 +1,4 @@
-package org.wamwoowam.PowerMacInfo;
+package nya.clockwork04.Minefetch;
 
 import com.sun.management.OperatingSystemMXBean;
 import org.bukkit.Bukkit;
@@ -12,8 +12,6 @@ import static org.bukkit.Bukkit.getServer;
 
 public class Loadometer {
 
-    //x86 Debugging
-    boolean debug = true;
     private double memUsage;
     private double cpuUsage;
     private double worldSize;
@@ -23,17 +21,18 @@ public class Loadometer {
 
         updateLoad();
 
-        //Scheduled to rerun and reparse every minutes since uptime should.. update.. every once in a while
+        //Scheduled to rerun and reparse every 2 minutes since uptime should.. update.. every once in a while
         //Bukkit scheduler has.. cursed syntax, below is an Initial Delay of 0 Ticks, then 20 Ticks times 60 which means this task runs every minute (60 Seconds)
         var scheduler = Bukkit.getScheduler();
-        scheduler.runTaskTimerAsynchronously(plugin, this::updateLoad, 0L, 20L * 60L);
-
-        // We need the world to load before querying its folder :'3
-        scheduler.runTaskTimerAsynchronously(plugin, this::updateWorldSize, 30L, 20L * 60L);
-
-        //grabs TPS ;3
-        scheduler.runTaskTimerAsynchronously(plugin, new TPS(), 100L, 1L);
+        scheduler.runTaskTimerAsynchronously(plugin, this::updateLoad, 0L, 20L * 120L);
         //i mean i guess it makes sense.. this is a minecraft plugin and minecraft uses ticks.. funny this is required though to get real time
+
+        // We need the world to load before querying its folder :'3, 30-second delay if the world doesn't load before that something else is fucked
+        scheduler.runTaskTimerAsynchronously(plugin, this::updateWorldSize, 20L * 30L, 20L * 60L);
+
+        //grabs TPS ;3 100 tick delay, MUST run every tick to work correctly.. which sounds like a bad idea but.. eh
+        scheduler.runTaskTimerAsynchronously(plugin, new TPS(), 100L, 1L);
+
         return true;
     }
 
@@ -54,6 +53,7 @@ public class Loadometer {
 
     public void updateWorldSize() {
         // Grab World Size
+        if(!worldGrabbed) {Bukkit.getLogger().info("[Minefetch] Loading world size for the first time..");}
         File worldDirectory = new File(getServer().getWorldContainer(), getServer().getWorlds().get(0).getName());
         long sizeInBytes = getDirectorySize(worldDirectory);
         double sizeInGB = sizeInBytes / (1024.0 * 1024.0);
@@ -61,11 +61,11 @@ public class Loadometer {
         worldGrabbed = true;
     }
 
-    public double getCPULoad() {;
+    public double getCPULoad() {
         return this.cpuUsage;
     }
 
-    public double getMEMLoad() {;
+    public double getMEMLoad() {
         return this.memUsage;
     }
 
@@ -91,11 +91,9 @@ public class Loadometer {
         return size;
     }
 
-    public String barBuilder(double percentageFree, boolean usedLabel){
+    public String barBuilder(double percentageFree){
 
         ChatColor wrapColor = ChatColor.WHITE;
-
-        StringBuilder sb = new StringBuilder();
 
         ChatColor color = ChatColor.GOLD;
         if (percentageFree >= 60){
@@ -119,11 +117,8 @@ public class Loadometer {
         while (looped++ <= 20){
             bar += '_';
         }
-        if(usedLabel) {
-            return (wrapColor+"["+color+bar+wrapColor+"] " + " ("+ Math.round(percentageFree)+"%) USED");
-        }else {
-            return (wrapColor+"["+color+bar+wrapColor+"] " + " ("+ Math.round(percentageFree)+"%)");
-        }
-
+    return (wrapColor+"["+color+bar+wrapColor+"] " + " ("+ Math.round(percentageFree)+"%)");
     }
+
 }
+

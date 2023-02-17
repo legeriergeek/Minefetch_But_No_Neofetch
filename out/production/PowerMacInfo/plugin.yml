@@ -1,7 +1,7 @@
-name: PowerMacInfo
-version: 1.0
-author: WamWooWam
-main: org.wamwoowam.PowerMacInfo.Main
+name: Minefetch
+version: 1.1
+author: WamWooWam, Snoopie
+main: nya.clockwork04.Minefetch.Main
 load: STARTUP
 commands:
   neofetch:
